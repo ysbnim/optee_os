@@ -5,29 +5,51 @@
 
 #include <compiler.h>
 #include <console.h>
+#include <ffa.h>
 #include <drivers/ffa_console.h>
 #include <drivers/serial.h>
 #include <kernel/dt_driver.h>
 #include <kernel/thread_arch.h>
 
-#define FFA_CONSOLE_LOG_32		(0x8400008A)
+static struct ffa_console_data ffa_console __nex_bss;
 
 static void ffa_console_putc(struct serial_chip *chip __unused, int ch)
 {
-	thread_hvc(FFA_CONSOLE_LOG_32, 1, ch, 0);
+	struct ffa_console_data *pd =
+		container_of(chip, struct ffa_console_data, chip);
+
+	pd->buf[pd->pos++] = ch;
+
+	if (pd->pos == FFA_CONSOLE_LOG_32_MAX_MSG_LEN) {
+		ffa_console_flush(chip);
+	}
+}
+
+static void ffa_console_flush(struct serial_chip *chip)
+{
+	struct ffa_console_data *pd =
+		container_of(chip, struct ffa_console_data, chip);
+
+	struct thread_smc_args args = { };
+	args.a0 = FFA_CONSOLE_LOG_32;
+	args.a1 = pd->pos;
+	memcpy(&args.a2, pd->buf, pd->pos);
+	thread_smccc(&args);
+
+	pd->pos = 0;
 }
 
 static const struct serial_ops ffa_console_ops = {
 	.putc = ffa_console_putc,
+	.flush = ffa_console_flush,
 };
 DECLARE_KEEP_PAGER(ffa_console_ops);
 
-static struct serial_chip ffa_console = {
-	.ops = &ffa_console_ops
-};
-
 void ffa_console_init(void)
 {
+	ffa_console.chip.ops = &ffa_console_ops;
+	ffa_console.pos = 0;
+
 	register_serial_console(&ffa_console);
 }
 
