@@ -2343,7 +2343,8 @@ TEE_Result core_mmu_remove_mapping(enum teecore_memtypes type, void *addr,
 	res_map = find_map_by_type(MEM_AREA_RES_VASPACE);
 	if (!res_map)
 		return TEE_ERROR_GENERIC;
-	if (!core_mmu_find_table(NULL, res_map->va, UINT_MAX, &tbl_info))
+
+	if (!core_mmu_find_table(NULL, map->va, UINT_MAX, &tbl_info))
 		return TEE_ERROR_GENERIC;
 	granule = BIT(tbl_info.shift);
 
